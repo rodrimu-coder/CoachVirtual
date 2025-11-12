@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#111827" />
-    <title>CoachTennisPro</title>
+    <title>CoachTennisPro_Partido</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -104,9 +104,10 @@
   const SERVE_PLANS = {
     baseHard: { deuce:{ open:60, T:30, body:10 }, ad:{ body:50, T:30, open:20 } },
     bySurface(surface){
+      const base = this.baseHard;
       if(surface === "Arcilla") return { deuce:{ open:55, T:25, body:20 }, ad:{ body:55, T:25, open:20 } };
       if(surface === "Césped") return { deuce:{ open:45, T:45, body:10 }, ad:{ body:40, T:45, open:15 } };
-      return this.baseHard; // Dura
+      return base; // Dura
     }
   };
 
@@ -158,7 +159,7 @@
     const [myWeaknesses, setMyWeaknesses] = useState(loadLS("myWeaknesses", emptyArr));
 
     const [oppName, setOppName] = useState(loadLS("oppName",""));
-    const [oppKnown, setOppKnown] = useState(loadLS("oppKnown",""));
+    const [oppKnown, setOppKnown] = useState(loadLS("oppKnown","")); // vacío por defecto
     const [oppHand, setOppHand] = useState(loadLS("oppHand",""));
     const [oppStyle, setOppStyle] = useState(loadLS("oppStyle",""));
     const [oppStrengths, setOppStrengths] = useState(loadLS("oppStrengths", emptyArr));
@@ -220,7 +221,7 @@
     };
     const importJSON = (file) => { const reader = new FileReader(); reader.onload = () => { try { const { rivals: rv = [], matches: mt = [] } = JSON.parse(reader.result); setRivals(rv); setMatches(mt); alert('Datos importados.'); } catch(e) { alert('Archivo inválido.'); } }; reader.readAsText(file); };
 
-    // Reinicio global
+    // Reinicio global (borra estado y localStorage)
     const resetAll = () => {
       if (!confirm('¿Reiniciar todo? Se borrarán selecciones locales.')) return;
       localStorage.removeItem('tab');
@@ -229,8 +230,7 @@
       setMyHand(''); setMyStyle(''); setMyStrengths([]); setMyWeaknesses([]);
       setOppName(''); setOppKnown(''); setOppHand(''); setOppStyle(''); setOppStrengths([]); setOppWeak([]);
       setSurface(''); setWeather('');
-      setObs({ missBH:0, weak2nd:0, hatesNet:0, strugglesHigh:0, slowMove:0 });
-      setScore({ set:1, my:0, opp:0, trend:'Parejo' }); setFeeling(''); setNotes('');
+      resetObs(); setScore({ set:1, my:0, opp:0, trend:'Parejo' }); setFeeling(''); setNotes('');
     };
 
     const servePlan = SERVE_PLANS.bySurface(surface || 'Dura');
@@ -238,11 +238,9 @@
     /* ───────────── MODO CAMBIO DE LADO (overlay 20s) ───────────── */
     const [sidePanel, setSidePanel] = useState({visible:false,color:"green",plan:"",adjust:"",mental:""});
     const sideTimer = useRef(null);
-
     const trendColor = (t)=> t==="Ganando" ? "green" : t==="Parejo" ? "orange" : "red";
 
     const computeSideMessages = ()=>{
-      // Usa el advice existente + contexto para 3 frases cortas:
       const plan = advice?.patterns?.[0] || advice?.plan?.[0] || "Juega grande al centro";
       const adjust =
         score.trend==="Ganando" ? "Consolida y margen alto" :
@@ -398,9 +396,9 @@
         {/* EN PARTIDO */}
         {tab === 'live' && (
           <div className="grid gap-4 md:grid-cols-2">
-            <Section title="Marcador, sensaciones y foco" right={<div className="flex items-center gap-2 text-xs">
+            <Section title="Marcador y sensaciones" right={<div className="flex items-center gap-2 text-xs">
               <button onClick={()=>setScore(s=>({...s, my: Math.max(0, s.my-1)}))} className="rounded-lg border px-3 py-2">-</button>
-              <span className="text-sm">Yo: {score.my}</span>
+              <span className="text-sm">Juegos Yo: {score.my}</span>
               <button onClick={()=>setScore(s=>({...s, my: s.my+1}))} className="rounded-lg border px-3 py-2">+</button>
               <span className="mx-1">/</span>
               <button onClick={()=>setScore(s=>({...s, opp: Math.max(0, s.opp-1)}))} className="rounded-lg border px-3 py-2">-</button>
@@ -413,7 +411,7 @@
                 <Select label="Sensación actual" value={feeling} setValue={setFeeling} options={FEELINGS} />
               </div>
               <div className="mt-3">
-                <button onClick={openSideChange} className="w-full rounded-2xl bg-gray-900 text-white px-4 py-3 hover:bg-gray-800">Cambio de lado (20s)</button>
+                <button onClick={openSideChange} className="w-full rounded-2xl bg-gray-900 text-white px-4 py-3 hover:bg-gray-800">cambioLado</button>
               </div>
             </Section>
 
@@ -557,7 +555,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  // Motor de consejo
+  // Motor de consejo: ahora separa Saque (tuyo) / Devolución (rival)
   // ────────────────────────────────────────────────────────────────────────────
   function buildAdvice(ctx) {
     const { myHand, myStyle, myStrengths, myWeaknesses, oppHand, oppStyle, oppStrengths, oppWeak, surface, weather, inMatch } = ctx;
