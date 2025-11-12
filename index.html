@@ -17,638 +17,209 @@
   <body class="bg-gray-100">
     <div id="root"></div>
 
-    <!-- App con Babel (sin export default) -->
+    <!-- SCRIPT PRINCIPAL -->
     <script type="text/babel" data-presets="react">
-  const { useState, useEffect, useMemo } = React;
+      const { useState, useEffect, useMemo } = React;
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Catálogos
-  // ────────────────────────────────────────────────────────────────────────────
-  const SURFACES = ["Arcilla", "Dura", "Césped"];
-  const STYLES = ["Agresivo de fondo", "Contragolpeador", "Todo-terreno", "Saque y volea", "Gran sacador", "Derecha dominante", "Buen revés", "Pusher"];
-  const HANDS = ["Diestro", "Zurdo"];
-  const STRENGTHS = ["Derecha", "Revés", "Saque", "Volea", "Físico", "Topspin"];
-  const WEAKNESSES = ["Revés", "Derecha", "Movimiento", "Juego en la red", "Segundo saque", "Altas (topspin)", "Bajas (slice)"];
-  const WEATHER = ["Templado", "Calor", "Frío", "Viento", "Humedad", "Altura"];
-  const FEELINGS = ["Confiado", "Neutro", "Tenso", "Cansado", "Dolor leve"];
-  const SCORE_TRENDS = ["Ganando","Parejo","Perdiendo"];
+      /* --------------------- Catálogos --------------------- */
+      const SURFACES = ["Arcilla", "Dura", "Césped"];
+      const STYLES = ["Agresivo de fondo", "Contragolpeador", "Todo-terreno", "Saque y volea"];
+      const HANDS = ["Diestro", "Zurdo"];
+      const STRENGTHS = ["Derecha", "Revés", "Saque", "Volea", "Físico", "Topspin"];
+      const WEAKNESSES = ["Revés", "Derecha", "Movimiento", "Juego en la red", "Segundo saque", "Altas (topspin)", "Bajas (slice)"];
+      const WEATHER = ["Templado", "Calor", "Frío", "Viento", "Humedad"];
+      const FEELINGS = ["Confiado", "Neutro", "Tenso", "Cansado", "Dolor leve"];
+      const SCORE_TRENDS = ["Ganando","Parejo","Perdiendo"];
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // UI Helpers
-  // ────────────────────────────────────────────────────────────────────────────
-  const Tag = ({ children }) => (
-    <span className="inline-block rounded-full border px-2 py-0.5 text-xs text-gray-700">{children}</span>
-  );
+      /* --------------------- Helpers UI --------------------- */
+      const Tag = ({ children }) => (
+        <span className="inline-block rounded-full border px-2 py-0.5 text-xs text-gray-700">{children}</span>
+      );
 
-  const Section = ({ title, right, children }) => (
-    <div className="rounded-2xl border bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
+      const Section = ({ title, right, children }) => (
+        <div className="rounded-2xl border bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {right}
+          </div>
+          {children}
+        </div>
+      );
 
-  const MultiCheck = ({ options, values, onChange }) => (
-    <div className="flex flex-wrap gap-2">
-      {options.map((opt) => {
-        const checked = values.includes(opt);
-        return (
-          <label key={opt} className={`cursor-pointer select-none rounded-xl border px-3 py-2 text-sm active:scale-[0.99] ${checked ? "bg-gray-900 text-white" : "bg-white"}`}>
-            <input
-              type="checkbox"
-              className="mr-2 align-middle"
-              checked={checked}
-              onChange={(e) => {
-                if (e.target.checked) onChange([...values, opt]);
-                else onChange(values.filter((v) => v !== opt));
-                if (navigator.vibrate) navigator.vibrate(10);
-              }}
-            />
-            {opt}
-          </label>
-        );
-      })}
-    </div>
-  );
+      const Select = ({ label, value, setValue, options }) => (
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-gray-600">{label}</span>
+          <select
+            className="rounded-xl border px-3 py-3"
+            value={value}
+            onChange={(e)=>setValue(e.target.value)}
+          >
+            {options.map((o)=><option key={o}>{o}</option>)}
+          </select>
+        </label>
+      );
 
-  const Select = ({ label, value, setValue, options, placeholder = "— Selecciona —" }) => (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-gray-600">{label}</span>
-      <select
-        className="rounded-xl border px-3 py-3"
-        value={value}
-        onChange={(e) => { setValue(e.target.value); if (navigator.vibrate) navigator.vibrate(10);} }
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </label>
-  );
-
-  const TextArea = ({ label, value, setValue, placeholder }) => (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-gray-600">{label}</span>
-      <textarea className="rounded-xl border px-3 py-3 min-h-[96px]" value={value} onChange={(e)=>setValue(e.target.value)} placeholder={placeholder} />
-    </label>
-  );
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // Persistencia simple (LocalStorage)
-  // ────────────────────────────────────────────────────────────────────────────
-  const saveLS = (k, v) => localStorage.setItem(k, JSON.stringify(v));
-  const loadLS = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; } catch { return fb; } };
-
-  // Data: micro‑planes & reglas
-  const SERVE_PLANS = {
-    baseHard: { deuce:{ open:60, T:30, body:10 }, ad:{ body:50, T:30, open:20 } },
-    bySurface(surface){
-      const base = this.baseHard;
-      if(surface === "Arcilla") return { deuce:{ open:55, T:25, body:20 }, ad:{ body:55, T:25, open:20 } };
-      if(surface === "Césped") return { deuce:{ open:45, T:45, body:10 }, ad:{ body:40, T:45, open:15 } };
-      return base; // Dura
-    }
-  };
-
-  const OPP_TACTICS = {
-    "Gran sacador": ["Resto bloqueado profundo al cuerpo; lee patrones wide/T", "Aprovecha segundo servicio adelantando posición"],
-    "Zurdo": ["Anticipa kick a tu revés; resta al medio o agresivo cruzado", "Saque a la T en iguales y al cuerpo en ventaja"],
-    "Topspin pesado": ["Slice bajo para cortar rebote; alterna ritmo", "Sube tras bola corta, evita peloteo alto sobre tu revés"],
-    "Contragolpeador": ["Entra en la cancha y toma en ascenso", "Drop‑approach cuando lo empujes atrás"],
-    "Saque y volea": ["Restos bajos a los pies y passing paralelo temprano", "Lob liftado cuando cierre bien ángulo"],
-    "Derecha dominante": ["Carga su revés hasta conseguir corta y luego al cuerpo", "Evita dejar derechas cómodas"],
-    "Pusher": ["Sube tras bola corta al cuerpo y cierra con volea", "Paciencia con cambios de altura; no regales líneas"],
-    "Buen revés": ["Domina diagonal revés y sorprende paralelo", "Ataca su derecha si es menos estable"],
-  };
-
-  const SCORE_TIPS = {
-    down: ["Aumenta margen: centro y alto", "Elige mejor bola de ataque", "+% 1º saque al cuerpo"],
-    up: ["Consolida: porcentajes y paciencia", "Evita riesgos innecesarios"],
-    even: ["Presiona su revés con altura", "Saca al cuerpo y juega 3º al medio"],
-    mental: {
-      Tenso: "Respira 4‑4‑4 y objetivo grande",
-      Cansado: "Puntos cortos: saque+1",
-      Confiado: "Consolida, margen y paciencia",
-      Neutro: "Objetivo grande y timing",
-      "Dolor leve": "Simplifica gestos y juega al centro",
-    }
-  };
-
-  const CLIMATE_TIPS = {
-    Viento: ["Contra viento: más altura; a favor: más plano", "Reduce blancos laterales y juega al centro"],
-    Calor: ["Gestiona energía e hidratación", "Busca puntos cortos con saque+1"],
-    Frío: ["Acelera swings para mantener ritmo", "Entra a la pelota"],
-    Humedad: ["La bola pesa más: altura y profundidad", "Cierra en la red cuando quede corta"],
-    Altura: ["Sube tensión 3–7 lb y apunta al centro", "Usa más efecto de control"],
-  };
-
-  const WEEK_PLAN = [
-    { t:"Saques (3 spots por lado)", m:"20' — meta ≥65% primeros" },
-    { t:"Devolución + Devolución+1", m:"20' — zonas predeterminadas" },
-    { t:"Juegos 0–4 golpes", m:"20' — enfoque primeros 4 golpes" },
-    { t:"Simulación clima/altura", m:"15' — viento o altura" },
-    { t:"Enfriamiento/recuperación", m:"10' — respiración, movilidad" },
-  ];
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // App principal
-  // ────────────────────────────────────────────────────────────────────────────
-  function App() {
-    // Tab
-    const [tab, setTab] = useState(loadLS("tab","prep"));
-
-    // Defaults vacíos
-    const emptyArr = [];
-    const [myHand, setMyHand] = useState(loadLS("myHand",""));
-    const [myStyle, setMyStyle] = useState(loadLS("myStyle",""));
-    const [myStrengths, setMyStrengths] = useState(loadLS("myStrengths", emptyArr));
-    const [myWeaknesses, setMyWeaknesses] = useState(loadLS("myWeaknesses", emptyArr));
-
-    const [oppName, setOppName] = useState(loadLS("oppName",""));
-    const [oppKnown, setOppKnown] = useState(loadLS("oppKnown",""));
-    const [oppHand, setOppHand] = useState(loadLS("oppHand",""));
-    const [oppStyle, setOppStyle] = useState(loadLS("oppStyle",""));
-    const [oppStrengths, setOppStrengths] = useState(loadLS("oppStrengths", emptyArr));
-    const [oppWeak, setOppWeak] = useState(loadLS("oppWeak", emptyArr));
-
-    const [surface, setSurface] = useState(loadLS("surface",""));
-    const [weather, setWeather] = useState(loadLS("weather",""));
-
-    const [obs, setObs] = useState(loadLS("obs",{ missBH:0, weak2nd:0, hatesNet:0, strugglesHigh:0, slowMove:0 }));
-    const bump = (k) => setObs((s) => { const v = { ...s, [k]: s[k] + 1 }; if (navigator.vibrate) navigator.vibrate(10); return v; });
-    const resetObs = () => setObs({ missBH:0, weak2nd:0, hatesNet:0, strugglesHigh:0, slowMove:0 });
-
-    const [score, setScore] = useState(loadLS("score",{ set:1, my:0, opp:0, trend:"Parejo" }));
-    const [feeling, setFeeling] = useState(loadLS("feeling",""));
-
-    const [rivals, setRivals] = useState(loadLS("ctia-rivals",[]));
-    const [matches, setMatches] = useState(loadLS("ctia-matches",[]));
-
-    const [notes, setNotes] = useState(loadLS("notes",""));
-
-    // Nuevo: side-change panel + logs
-    const [sidePanel, setSidePanel] = useState({ visible:false, color:"green", cards:null });
-    const [sideLogs, setSideLogs] = useState(loadLS("sideLogs", []));
-
-    useEffect(() => {
-      saveLS("tab", tab);
-      saveLS("myHand", myHand); saveLS("myStyle", myStyle); saveLS("myStrengths", myStrengths); saveLS("myWeaknesses", myWeaknesses);
-      saveLS("oppName", oppName); saveLS("oppKnown", oppKnown); saveLS("oppHand", oppHand); saveLS("oppStyle", oppStyle); saveLS("oppStrengths", oppStrengths); saveLS("oppWeak", oppWeak);
-      saveLS("surface", surface); saveLS("weather", weather);
-      saveLS("obs", obs); saveLS("score", score); saveLS("feeling", feeling); saveLS("notes", notes);
-      saveLS("sideLogs", sideLogs);
-    }, [tab,myHand,myStyle,myStrengths,myWeaknesses,oppName,oppKnown,oppHand,oppStyle,oppStrengths,oppWeak,surface,weather,obs,score,feeling,notes,sideLogs]);
-    useEffect(() => saveLS("ctia-rivals", rivals), [rivals]);
-    useEffect(() => saveLS("ctia-matches", matches), [matches]);
-
-    // Consejo
-    const advice = useMemo(() => buildAdvice({ myHand, myStyle, myStrengths, myWeaknesses, oppHand, oppStyle, oppStrengths, oppWeak, surface, weather, inMatch: { obs, score, feeling } }), [myHand, myStyle, myStrengths, myWeaknesses, oppHand, oppStyle, oppStrengths, oppWeak, surface, weather, obs, score, feeling]);
-
-    // Side-change: genera 3 tarjetas y registra snapshot
-    const triggerSideChange = () => {
-      const panel = buildSidePanel({ advice, obs, score, feeling });
-      if (navigator.vibrate) navigator.vibrate(30);
-      setSidePanel({ visible:true, ...panel });
-      setSideLogs([ { ts:new Date().toISOString(), trend:score.trend, feeling, cards:panel.cards }, ...sideLogs ]);
-      setTimeout(()=> setSidePanel(s=> ({ ...s, visible:false })), 20000);
-    };
-
-    // Guardar/cargar rival
-    const saveRivalProfile = () => {
-      if (!oppName) return alert("Escribe el nombre del rival para guardar su perfil.");
-      const profile = { oppName, oppHand, oppStyle, oppStrengths, oppWeak, surface, updatedAt: new Date().toISOString() };
-      const next = rivals.filter(r => r.oppName !== oppName).concat(profile).sort((a,b) => (b.updatedAt||"").localeCompare(a.updatedAt||""));
-      setRivals(next);
-      alert("Perfil de rival guardado.");
-    };
-    const loadRivalProfile = (name) => {
-      const r = rivals.find(x => x.oppName === name);
-      if (!r) return;
-      setOppName(r.oppName); setOppHand(r.oppHand); setOppStyle(r.oppStyle); setOppStrengths(r.oppStrengths); setOppWeak(r.oppWeak); setSurface(r.surface ?? surface); setTab("prep");
-    };
-
-    // Guardar partido
-    const saveMatch = () => {
-      const entry = { ts: new Date().toISOString(), oppName: oppName || "(sin nombre)", surface, weather, obs: {...obs}, score: {...score}, feeling, adviceSnapshot: advice, sideLogs:[...sideLogs] };
-      setMatches([entry, ...matches]);
-      setSideLogs([]);
-      alert("Partido guardado en el historial.");
-    };
-
-    // Export/Import
-    const exportJSON = () => {
-      const blob = new Blob([JSON.stringify({ rivals, matches }, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'coachtennisia_historial.json'; a.click(); URL.revokeObjectURL(url);
-    };
-    const importJSON = (file) => { const reader = new FileReader(); reader.onload = () => { try { const { rivals: rv = [], matches: mt = [] } = JSON.parse(reader.result); setRivals(rv); setMatches(mt); alert('Datos importados.'); } catch(e) { alert('Archivo inválido.'); } }; reader.readAsText(file); };
-
-    // Reinicio global
-    const resetAll = () => {
-      if (!confirm('¿Reiniciar todo? Se borrarán selecciones locales.')) return;
-      ['tab','myHand','myStyle','myStrengths','myWeaknesses','oppName','oppKnown','oppHand','oppStyle','oppStrengths','oppWeak','surface','weather','obs','score','feeling','notes','sideLogs'].forEach(k=>localStorage.removeItem(k));
-      setTab('prep'); setMyHand(''); setMyStyle(''); setMyStrengths([]); setMyWeaknesses([]);
-      setOppName(''); setOppKnown(''); setOppHand(''); setOppStyle(''); setOppStrengths([]); setOppWeak([]);
-      setSurface(''); setWeather(''); resetObs(); setScore({ set:1, my:0, opp:0, trend:'Parejo' }); setFeeling(''); setNotes(''); setSideLogs([]); setSidePanel({visible:false,color:'green',cards:null});
-    };
-
-    const servePlan = SERVE_PLANS.bySurface(surface || 'Dura');
-
-    return (
-      <div className="mx-auto max-w-5xl space-y-4 p-3 pb-32 safe">
-        <header className="sticky top-0 z-10 rounded-2xl bg-gradient-to-r from-gray-900 to-gray-700 p-5 text-white shadow">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">CoachTennisIA · MVP dividido (mejorado)</h1>
-              <p className="mt-1 text-xs md:text-sm opacity-90">Prepartido · En partido · Historial · Entrenamiento</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <button onClick={resetAll} className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 hover:bg-white/20">Reiniciar todo</button>
-              <button onClick={saveRivalProfile} className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 hover:bg-white/20">Guardar rival</button>
-              <button onClick={saveMatch} className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 hover:bg-white/20">Guardar partido</button>
-              <button onClick={exportJSON} className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 hover:bg-white/20">Exportar</button>
-              <label className="cursor-pointer rounded-lg border border-white/30 bg-white/10 px-3 py-2 hover:bg-white/20">
-                Importar
-                <input type="file" className="hidden" accept="application/json" onChange={(e)=> e.target.files?.[0] && importJSON(e.target.files[0])} />
+      const MultiCheck = ({ options, values, onChange }) => (
+        <div className="flex flex-wrap gap-2">
+          {options.map(opt=>{
+            const checked=values.includes(opt);
+            return(
+              <label key={opt} className={`cursor-pointer rounded-xl border px-3 py-2 text-sm ${checked?"bg-gray-900 text-white":"bg-white"}`}>
+                <input type="checkbox" className="mr-2" checked={checked}
+                  onChange={(e)=>{
+                    if(e.target.checked) onChange([...values,opt]);
+                    else onChange(values.filter(v=>v!==opt));
+                  }}/>
+                {opt}
               </label>
-            </div>
-          </div>
-          <nav className="mt-3 grid grid-cols-4 gap-2 text-sm">
-            {[
-              { id: 'prep', label: '1) Preparación prepartido' },
-              { id: 'live', label: '2) En partido' },
-              { id: 'history', label: '3) Historial' },
-              { id: 'training', label: '4) Entrenamiento' },
-            ].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-xl px-3 py-2 ${tab===t.id? 'bg-white text-gray-900' : 'bg-white/10 text-white'} hover:bg-white/20`}>{t.label}</button>
-            ))}
-          </nav>
-        </header>
+            )
+          })}
+        </div>
+      );
 
-        {/* PREPARTIDO */}
-        {tab === 'prep' && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Section title="Tu perfil">
-              <div className="grid gap-3">
-                <Select label="Mano" value={myHand} setValue={setMyHand} options={HANDS} />
-                <Select label="Estilo" value={myStyle} setValue={setMyStyle} options={STYLES} />
-                <div>
-                  <div className="mb-1 text-sm text-gray-600">Fortalezas</div>
-                  <MultiCheck options={STRENGTHS} values={myStrengths} onChange={setMyStrengths} />
-                </div>
-                <div>
-                  <div className="mb-1 text-sm text-gray-600">Debilidades propias</div>
-                  <MultiCheck options={WEAKNESSES} values={myWeaknesses} onChange={setMyWeaknesses} />
-                </div>
-                <TextArea label="Notas mentales" value={notes} setValue={setNotes} placeholder="Respirar, objetivo grande, rutina entre puntos…" />
+      /* --------------------- LocalStorage --------------------- */
+      const saveLS=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+      const loadLS=(k,fb)=>{try{return JSON.parse(localStorage.getItem(k))??fb}catch{return fb}};
+
+      /* --------------------- App principal --------------------- */
+      function App(){
+        const [tab,setTab]=useState("prep");
+        const [myHand,setMyHand]=useState(loadLS("myHand","Diestro"));
+        const [myStyle,setMyStyle]=useState(loadLS("myStyle","Agresivo de fondo"));
+        const [myStrengths,setMyStrengths]=useState(loadLS("myStrengths",["Derecha"]));
+        const [myWeaknesses,setMyWeaknesses]=useState(loadLS("myWeaknesses",["Revés"]));
+        const [oppHand,setOppHand]=useState(loadLS("oppHand","Zurdo"));
+        const [oppStyle,setOppStyle]=useState(loadLS("oppStyle","Contragolpeador"));
+        const [surface,setSurface]=useState(loadLS("surface","Arcilla"));
+        const [weather,setWeather]=useState(loadLS("weather","Templado"));
+        const [feeling,setFeeling]=useState(loadLS("feeling","Neutro"));
+        const [score,setScore]=useState(loadLS("score",{set:1,my:0,opp:0,trend:"Parejo"}));
+        const [obs,setObs]=useState(loadLS("obs",{missBH:0,weak2nd:0,hatesNet:0,strugglesHigh:0,slowMove:0}));
+
+        const bump=(k)=>setObs(s=>({...s,[k]:s[k]+1}));
+        const resetObs=()=>setObs({missBH:0,weak2nd:0,hatesNet:0,strugglesHigh:0,slowMove:0});
+
+        useEffect(()=>{
+          saveLS("myHand",myHand);saveLS("myStyle",myStyle);
+          saveLS("myStrengths",myStrengths);saveLS("myWeaknesses",myWeaknesses);
+          saveLS("oppHand",oppHand);saveLS("oppStyle",oppStyle);
+          saveLS("surface",surface);saveLS("weather",weather);
+          saveLS("feeling",feeling);saveLS("score",score);saveLS("obs",obs);
+        },[myHand,myStyle,myStrengths,myWeaknesses,oppHand,oppStyle,surface,weather,feeling,score,obs]);
+
+        /* ---------------- Panel cambio de lado ---------------- */
+        const [sidePanel,setSidePanel]=useState({visible:false,color:"green",cards:null});
+        const triggerSideChange=()=>{
+          const plan="Cargar revés + bolas altas";
+          const adjust=score.trend==="Ganando"?"Consolida y margen alto":score.trend==="Perdiendo"?"Reset: juega al centro":"Presiona revés rival";
+          const mental=feeling==="Cansado"?"Respira profundo y acorta puntos":feeling==="Tenso"?"Rutina 4-4-4 y apunta grande":"Foco: siguiente punto";
+          const color=score.trend==="Ganando"?"green":score.trend==="Parejo"?"orange":"red";
+          setSidePanel({visible:true,color,cards:{plan,adjust,mental}});
+          setTimeout(()=>setSidePanel(s=>({...s,visible:false})),20000);
+        };
+
+        /* ---------------- Render ---------------- */
+        return(
+          <div className="mx-auto max-w-5xl space-y-4 p-3 pb-28 safe">
+            <header className="sticky top-0 z-10 rounded-2xl bg-gradient-to-r from-gray-900 to-gray-700 p-5 text-white shadow">
+              <div className="flex justify-between items-center">
+                <h1 className="text-xl font-bold">CoachTennisIA · MVP dividido</h1>
+                <nav className="grid grid-cols-3 gap-2 text-sm">
+                  {[
+                    {id:"prep",label:"1) Preparación"},
+                    {id:"live",label:"2) En partido"},
+                    {id:"training",label:"3) Entrenamiento"}
+                  ].map(t=>
+                    <button key={t.id} onClick={()=>setTab(t.id)} className={`rounded-xl px-3 py-2 ${tab===t.id?"bg-white text-gray-900":"bg-white/10 text-white"}`}>{t.label}</button>
+                  )}
+                </nav>
               </div>
-            </Section>
+            </header>
 
-            <Section title="Rival y contexto" right={<div className="flex items-center gap-2">
-              <select className="rounded-lg border px-2 py-1 text-sm" value={oppKnown} onChange={(e)=>setOppKnown(e.target.value)}>
-                <option value="">— Conocimiento —</option>
-                <option>Lo conozco</option>
-                <option>Desconocido</option>
-              </select>
-              {rivals.length>0 && (
-                <select className="rounded-lg border px-2 py-1 text-sm" onChange={(e)=> e.target.value && loadRivalProfile(e.target.value)}>
-                  <option value="">Cargar rival…</option>
-                  {rivals.map(r => <option key={r.oppName} value={r.oppName}>{r.oppName}</option>)}
-                </select>
-              )}
-            </div>}>
-              <div className="grid gap-3">
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="text-gray-600">Nombre del rival (opcional)</span>
-                  <input className="rounded-xl border px-3 py-3" placeholder="Ej: Juan Pérez" value={oppName} onChange={(e)=>setOppName(e.target.value)} />
-                </label>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Select label="Mano rival" value={oppHand} setValue={setOppHand} options={HANDS} />
-                  <Select label="Estilo rival" value={oppStyle} setValue={setOppStyle} options={STYLES} />
-                </div>
-                <div>
-                  <div className="mb-1 text-sm text-gray-600">Fortalezas del rival</div>
-                  <MultiCheck options={STRENGTHS} values={oppStrengths} onChange={setOppStrengths} />
-                </div>
-                <div>
-                  <div className="mb-1 text-sm text-gray-600">Debilidades del rival</div>
-                  <MultiCheck options={WEAKNESSES} values={oppWeak} onChange={setOppWeak} />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Select label="Superficie" value={surface} setValue={setSurface} options={SURFACES} />
-                  <Select label="Clima estimado" value={weather} setValue={setWeather} options={WEATHER} />
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                  {myHand && <Tag>{myHand}</Tag>}
-                  {myStyle && <Tag>{myStyle}</Tag>}
-                  {myStrengths.map((s) => (<Tag key={s}>{s}</Tag>))}
-                  {myWeaknesses.map((s) => (<Tag key={"mw"+s}>⚠ {s}</Tag>))}
-                </div>
-              </div>
-            </Section>
-
-            <Section title="Plan táctico (prepartido)">
+            {/* PREPARTIDO */}
+            {tab==="prep"&&(
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h3 className="mb-1 font-semibold">Plan de juego (0–4 golpes)</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.plan.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Patrones / jugadas</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.patterns.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Saque (tuyo)</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.serveYour.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Devolución (cuando saca el rival)</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.returnRival.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Alertas por debilidades propias</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.selfAlerts.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-              </div>
-            </Section>
+                <Section title="Tu perfil">
+                  <Select label="Mano" value={myHand} setValue={setMyHand} options={HANDS}/>
+                  <Select label="Estilo" value={myStyle} setValue={setMyStyle} options={STYLES}/>
+                  <div><span className="text-sm text-gray-600">Fortalezas</span><MultiCheck options={STRENGTHS} values={myStrengths} onChange={setMyStrengths}/></div>
+                  <div><span className="text-sm text-gray-600">Debilidades</span><MultiCheck options={WEAKNESSES} values={myWeaknesses} onChange={setMyWeaknesses}/></div>
+                </Section>
 
-            <Section title="Mapa de saque (porcentajes sugeridos por lado)">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-800">
-                <div className="rounded-xl border p-3"><div className="font-semibold mb-1">Deuce</div><div>Abierto: <b>{servePlan.deuce.open}%</b></div><div>T (al centro): <b>{servePlan.deuce.T}%</b></div><div>Cuerpo: <b>{servePlan.deuce.body}%</b></div></div>
-                <div className="rounded-xl border p-3"><div className="font-semibold mb-1">Ad</div><div>Cuerpo: <b>{servePlan.ad.body}%</b></div><div>T (al centro): <b>{servePlan.ad.T}%</b></div><div>Abierto: <b>{servePlan.ad.open}%</b></div></div>
+                <Section title="Contexto">
+                  <Select label="Superficie" value={surface} setValue={setSurface} options={SURFACES}/>
+                  <Select label="Clima" value={weather} setValue={setWeather} options={WEATHER}/>
+                </Section>
               </div>
-            </Section>
-          </div>
-        )}
+            )}
 
-        {/* EN PARTIDO */}
-        {tab === 'live' && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Section title="Marcador y sensaciones" right={<div className="flex items-center gap-2 text-xs">
-              <button onClick={()=>setScore(s=>({...s, my: Math.max(0, s.my-1)}))} className="rounded-lg border px-3 py-2">-</button>
-              <span className="text-sm">Juegos Yo: {score.my}</span>
-              <button onClick={()=>setScore(s=>({...s, my: s.my+1}))} className="rounded-lg border px-3 py-2">+</button>
-              <span className="mx-1">/</span>
-              <button onClick={()=>setScore(s=>({...s, opp: Math.max(0, s.opp-1)}))} className="rounded-lg border px-3 py-2">-</button>
-              <span className="text-sm">Rival: {score.opp}</span>
-              <button onClick={()=>setScore(s=>({...s, opp: s.opp+1}))} className="rounded-lg border px-3 py-2">+</button>
-            </div>}>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Select label="Tendencia" value={score.trend} setValue={(v)=>setScore(s=>({...s, trend:v}))} options={SCORE_TRENDS} />
-                <Select label="Clima actual" value={weather} setValue={setWeather} options={WEATHER} />
-                <Select label="Sensación actual" value={feeling} setValue={setFeeling} options={FEELINGS} />
-              </div>
-              <div className="mt-3">
-                <button onClick={triggerSideChange} className="w-full rounded-2xl border px-4 py-3 text-sm bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.99]">Cambio de lado (20 s de foco)</button>
-              </div>
-            </Section>
-
-            <Section title="Observaciones del rival (en juego)" right={<button onClick={resetObs} className="rounded-lg border px-3 py-2 text-sm">Reiniciar</button>}>
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
-                <button onClick={() => bump("missBH")} className="rounded-2xl border px-4 py-4 text-left active:scale-[0.99] bg-white hover:bg-gray-50">Rival: falla revés · <b>{obs.missBH}</b></button>
-                <button onClick={() => bump("weak2nd")} className="rounded-2xl border px-4 py-4 text-left active:scale-[0.99] bg-white hover:bg-gray-50">Rival: 2º saque débil · <b>{obs.weak2nd}</b></button>
-                <button onClick={() => bump("hatesNet")} className="rounded-2xl border px-4 py-4 text-left active:scale-[0.99] bg-white hover:bg-gray-50">Rival: evita la red · <b>{obs.hatesNet}</b></button>
-                <button onClick={() => bump("strugglesHigh")} className="rounded-2xl border px-4 py-4 text-left active:scale-[0.99] bg-white hover:bg-gray-50">Rival: sufre bolas altas · <b>{obs.strugglesHigh}</b></button>
-                <button onClick={() => bump("slowMove")} className="rounded-2xl border px-4 py-4 text-left active:scale-[0.99] bg-white hover:bg-gray-50">Rival: lento de piernas · <b>{obs.slowMove}</b></button>
-              </div>
-            </Section>
-
-            <Section title="Ajustes sugeridos (en partido)">
+            {/* EN PARTIDO */}
+            {tab==="live"&&(
               <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h3 className="mb-1 font-semibold">Ajustes tácticos</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.inMatch.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Plan B / C (situacional)</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.fallbacks.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-              </div>
-            </Section>
+                <Section title="Marcador y sensaciones">
+                  <div className="flex gap-2 text-sm items-center">
+                    <button onClick={()=>setScore(s=>({...s,my:Math.max(0,s.my-1)}))} className="rounded border px-3">-</button>
+                    <span>Yo: {score.my}</span>
+                    <button onClick={()=>setScore(s=>({...s,my:s.my+1}))} className="rounded border px-3">+</button>
+                    <span className="mx-2">/</span>
+                    <button onClick={()=>setScore(s=>({...s,opp:Math.max(0,s.opp-1)}))} className="rounded border px-3">-</button>
+                    <span>Rival: {score.opp}</span>
+                    <button onClick={()=>setScore(s=>({...s,opp:s.opp+1}))} className="rounded border px-3">+</button>
+                  </div>
+                  <Select label="Tendencia" value={score.trend} setValue={(v)=>setScore(s=>({...s,trend:v}))} options={SCORE_TRENDS}/>
+                  <Select label="Sensación" value={feeling} setValue={setFeeling} options={FEELINGS}/>
+                  <div className="mt-3">
+                    <button onClick={triggerSideChange} className="w-full rounded-2xl bg-gray-900 text-white px-4 py-3 hover:bg-gray-800">Cambio de lado (20s)</button>
+                  </div>
+                </Section>
 
-            <Section title="Tips por marcador y clima (rápidos)">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h3 className="mb-1 font-semibold">Marcador</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.scoreTips.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
-                <div>
-                  <h3 className="mb-1 font-semibold">Clima</h3>
-                  <ul className="list-disc pl-5 text-sm text-gray-800">{advice.climateTips.map((p, i) => (<li key={i}>{p}</li>))}</ul>
-                </div>
+                <Section title="Observaciones rápidas">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={()=>bump("missBH")} className="rounded border p-3 bg-white">Falla revés · <b>{obs.missBH}</b></button>
+                    <button onClick={()=>bump("weak2nd")} className="rounded border p-3 bg-white">2º débil · <b>{obs.weak2nd}</b></button>
+                    <button onClick={()=>bump("hatesNet")} className="rounded border p-3 bg-white">Evita red · <b>{obs.hatesNet}</b></button>
+                    <button onClick={()=>bump("slowMove")} className="rounded border p-3 bg-white">Lento · <b>{obs.slowMove}</b></button>
+                  </div>
+                  <button onClick={resetObs} className="mt-3 text-xs underline">Reiniciar</button>
+                </Section>
               </div>
-            </Section>
+            )}
 
-            {/* Barra rápida móvil */}
-            <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-5xl pb-[env(safe-area-inset-bottom)]">
-              <div className="m-3 rounded-2xl border bg-white/95 shadow-xl backdrop-blur supports-[backdrop-filter]:backdrop-blur-md">
-                <div className="grid grid-cols-5 gap-2 p-2 text-sm">
-                  <button onClick={()=>setScore(s=>({...s, my:s.my+1}))} className="col-span-1 rounded-xl border px-3 py-3">+ Juego Yo</button>
-                  <button onClick={()=>setScore(s=>({...s, opp:s.opp+1}))} className="col-span-1 rounded-xl border px-3 py-3">+ Juego Rival</button>
-                  <button onClick={()=>bump('weak2nd')} className="col-span-1 rounded-xl border px-3 py-3">2º Rvl</button>
-                  <button onClick={()=>bump('missBH')} className="col-span-1 rounded-xl border px-3 py-3">Revés Rvl</button>
-                  <button onClick={()=>bump('strugglesHigh')} className="col-span-1 rounded-xl border px-3 py-3">Altas Rvl</button>
-                </div>
-              </div>
-            </div>
+            {/* ENTRENAMIENTO */}
+            {tab==="training"&&(
+              <Section title="Plan semanal (75–90 min)">
+                <ul className="list-disc pl-5 text-sm text-gray-800 space-y-1">
+                  <li>Saques (3 spots por lado) — 20’ — meta ≥65% primeros</li>
+                  <li>Devolución + Devolución+1 — 20’ — zonas predeterminadas</li>
+                  <li>Juegos 0–4 golpes — 20’ — enfoque primeros 4 golpes</li>
+                  <li>Simulación clima/altura — 15’ — viento o altura</li>
+                  <li>Enfriamiento — 10’ — respiración y movilidad</li>
+                </ul>
+              </Section>
+            )}
 
-            {/* Overlay de Cambio de Lado */}
-            {sidePanel.visible && (
-              <div className="fixed inset-0 z-30 flex items-end md:items-center justify-center bg-black/40 backdrop-blur-sm">
-                <div className={`m-4 w-full max-w-xl rounded-2xl p-4 shadow-2xl ${sidePanel.color==='green'?'bg-emerald-50':'') } ${sidePanel.color==='orange'?'bg-amber-50':''} ${sidePanel.color==='red'?'bg-rose-50':''}`}>
-                  <div className="grid gap-3">
-                    <div className="rounded-xl border bg-white p-4 text-center text-base font-semibold">🧠 PLAN: {sidePanel.cards?.plan || '—'}</div>
-                    <div className="rounded-xl border bg-white p-4 text-center text-base font-semibold">⚙️ AJUSTE: {sidePanel.cards?.adjust || '—'}</div>
-                    <div className="rounded-xl border bg-white p-4 text-center text-base font-semibold">💬 MENTAL: {sidePanel.cards?.mental || '—'}</div>
-                    <div className="text-center text-xs text-gray-500">Se cerrará automáticamente en ~20s</div>
+            {/* Overlay cambio de lado */}
+            {sidePanel.visible&&(
+              <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                <div className={`m-4 w-full max-w-xl rounded-2xl p-4 shadow-2xl ${sidePanel.color==="green"?"bg-emerald-50":sidePanel.color==="orange"?"bg-amber-50":"bg-rose-50"}`}>
+                  <div className="grid gap-3 text-center">
+                    <div className="rounded-xl border bg-white p-4 font-semibold">🧠 PLAN: {sidePanel.cards.plan}</div>
+                    <div className="rounded-xl border bg-white p-4 font-semibold">⚙️ AJUSTE: {sidePanel.cards.adjust}</div>
+                    <div className="rounded-xl border bg-white p-4 font-semibold">💬 MENTAL: {sidePanel.cards.mental}</div>
+                    <p className="text-xs text-gray-500">Se cerrará automáticamente en ~20s</p>
                   </div>
                 </div>
               </div>
             )}
+
+            <footer className="pb-8 pt-2 text-center text-xs text-gray-500">
+              Demo MVP · No reemplaza a un entrenador. Usa criterio en cancha 🧠🎾
+            </footer>
           </div>
-        )}
+        );
+      }
 
-        {/* HISTORIAL */}
-        {tab === 'history' && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Section title="Perfiles de rivales guardados">
-              {rivals.length === 0 && <p className="text-sm text-gray-600">Aún no guardas rivales.</p>}
-              <div className="grid gap-2">
-                {rivals.map(r => (
-                  <div key={r.oppName} className="rounded-xl border p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">{r.oppName}</div>
-                      <div className="text-xs text-gray-500">{new Date(r.updatedAt).toLocaleString()}</div>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-600">
-                      <Tag>{r.oppHand}</Tag>
-                      <Tag>{r.oppStyle}</Tag>
-                      {r.oppStrengths?.map(s=> <Tag key={s}>F: {s}</Tag>)}
-                      {r.oppWeak?.map(s=> <Tag key={"w"+s}>D: {s}</Tag>)}
-                    </div>
-                    <div className="mt-2 flex gap-2">
-                      <button onClick={()=>loadRivalProfile(r.oppName)} className="rounded-lg border px-3 py-1 text-xs">Cargar</button>
-                      <button onClick={()=>setRivals(rs=>rs.filter(x=>x.oppName!==r.oppName))} className="rounded-lg border px-3 py-1 text-xs">Eliminar</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-            <Section title="Partidos guardados">
-              {matches.length === 0 && <p className="text-sm text-gray-600">Aún no guardas partidos.</p>}
-              <div className="grid gap-2">
-                {matches.map((m,idx)=> (
-                  <details key={idx} className="rounded-xl border p-3 text-sm">
-                    <summary className="cursor-pointer select-none">{new Date(m.ts).toLocaleString()} · vs {m.oppName} · {m.surface} · {m.weather}</summary>
-                    <div className="mt-2 grid gap-2">
-                      <div className="text-xs text-gray-600">Marcador (juegos): Yo {m.score.my} / Rival {m.score.opp} · Tendencia {m.score.trend} · Sensación {m.feeling}</div>
-                      <div>
-                        <div className="font-semibold">Ajustes que funcionaron</div>
-                        <ul className="list-disc pl-5">{m.adviceSnapshot?.inMatch?.map((x,i)=>(<li key={i}>{x}</li>))}</ul>
-                      </div>
-                      {m.sideLogs?.length>0 && (
-                        <div>
-                          <div className="font-semibold mt-2">Cambios de lado (foco mostrado)</div>
-                          <ul className="list-disc pl-5">
-                            {m.sideLogs.map((e,i)=> (
-                              <li key={i}>{new Date(e.ts).toLocaleTimeString()} — {e.cards?.plan} / {e.cards?.adjust} / {e.cards?.mental}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </Section>
-          </div>
-        )}
-
-        {/* ENTRENAMIENTO */}
-        {tab === 'training' && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Section title="Plan semanal (75–90 min)">
-              <ol className="list-decimal pl-5 text-sm text-gray-800 space-y-1">
-                {WEEK_PLAN.map((b,i)=> <li key={i}><b>{b.t}</b> — {b.m}</li>)}
-              </ol>
-            </Section>
-
-            <Section title="Checklist pre‑partido (rápido)">
-              <ul className="list-disc pl-5 text-sm text-gray-800 space-y-1">
-                <li>Definir 2–3 jugadas de Saque+1 y Devolución+1 por lado.</li>
-                <li>Ajustar mapa de saque por superficie y mano del rival.</li>
-                <li>Elegir Plan A, B y disparadores para cambiar (marcador/sensación).</li>
-                <li>Rutina de respiración y foco (palabra clave).</li>
-              </ul>
-            </Section>
-          </div>
-        )}
-
-        <footer className="pb-8 pt-2 text-center text-xs text-gray-500">Demo MVP · No reemplaza a un entrenador. Usa criterio en cancha 🧠🎾</footer>
-      </div>
-    );
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // Motor de consejo: separa Saque (tuyo) / Devolución (rival)
-  // ────────────────────────────────────────────────────────────────────────────
-  function buildAdvice(ctx) {
-    const { myHand, myStyle, myStrengths, myWeaknesses, oppHand, oppStyle, oppStrengths, oppWeak, surface, weather, inMatch } = ctx;
-    const plan = []; const patterns = []; const serveYour = []; const returnRival = []; const inMatchAdj = []; const fallbacks = []; const selfAlerts = []; const scoreTips=[]; const climateTips=[];
-
-    const isLeftyOpp = oppHand === "Zurdo"; const iAmLefty = myHand === "Zurdo";
-    const strongFH = myStrengths.includes("Derecha"); const strongBH = myStrengths.includes("Revés"); const strongTop = myStrengths.includes("Topspin");
-
-    plan.push("Domina los primeros 4 golpes: saque/devolución + siguiente golpe con patrón claro.");
-
-    if (surface === "Arcilla") { plan.push("Prioriza consistencia, altura y ángulos; castiga con topspin y profundidad."); if (strongTop) patterns.push("Pelota alta cruzada para empujarlo atrás y abrir paralelos."); }
-    if (surface === "Dura") { plan.push("Ritmo medio‑alto; primeros golpes dominantes y cambios de dirección."); }
-    if (surface === "Césped") { plan.push("Bolas bajas y rápidas: slice y cerrar en la red."); }
-
-    if (CLIMATE_TIPS[weather]) climateTips.push(...CLIMATE_TIPS[weather]);
-
-    if (oppWeak.includes("Revés")) { plan.push("Cargar el revés del rival en diagonales largas."); patterns.push(strongFH?"Derecha cruzada fuerte al revés + paralela cuando abra":"Cruza al revés y cambia al cuerpo para errores forzados."); }
-    if (oppWeak.includes("Derecha")) { plan.push("Ataca su derecha cuando esté en carrera o fuera de balance."); patterns.push("Mueve al revés para abrir y cambia a su derecha."); }
-    if (oppWeak.includes("Juego en la red")) { plan.push("Mantén pelotas bajas; forzar voleas difíciles."); patterns.push("Pase cruzado + globo si se acerca demasiado."); }
-    if (oppWeak.includes("Movimiento")) plan.push("Muévelo con cambios de dirección y dejadas.");
-    if (oppWeak.includes("Altas (topspin)")) plan.push("Usa bolas altas a su lado débil para provocar errores.");
-    if (oppWeak.includes("Bajas (slice)")) plan.push("Slice bajo y profundo, especialmente ángulo corto.");
-
-    if (oppStrengths.includes("Saque")) returnRival.push("Ante primer saque fuerte: bloquea profundo al medio para quitar ángulos.");
-    if (oppStrengths.includes("Derecha")) plan.push("Evita dejar derechas cómodas: juega al cuerpo o al revés.");
-    if (oppStrengths.includes("Revés")) plan.push("No regales paralelos al revés sólido; construye con altura.");
-
-    if (OPP_TACTICS[oppStyle]) plan.push(...OPP_TACTICS[oppStyle]);
-    if (myStyle === "Agresivo de fondo" && oppStyle === "Contragolpeador") plan.push("Ataca con paciencia: entra cuando la bola quede corta; evita sobrejugar.");
-    if (myStyle === "Contragolpeador" && oppStyle === "Agresivo de fondo") plan.push("Profundidad y cambio de alturas: que pegue en retroceso, roba tiempo.");
-    if (myStyle === "Saque y volea") serveYour.push("Varía direcciones y sube tras primer saque; ocasional tras segundo.");
-
-    if (isLeftyOpp) { plan.push("Tu derecha cruzada va a su revés; tu revés cruzado a su derecha. Ajusta patrones."); if (oppWeak.includes("Revés")) patterns.push("Derecha cruzada fuerte (a su revés de zurdo) + paralela cuando abra."); }
-    if (iAmLefty && !isLeftyOpp) patterns.push("Saque slice abierto de zurdo en iguales; derecha a campo abierto.");
-
-    if (strongFH) plan.push("Construye con tu derecha: inside‑out al revés y define inside‑in cuando abras.");
-    if (strongBH) patterns.push("Revés cruzado pesado para dominar; paralelo cuando lo bloquees.");
-
-    if (myWeaknesses.includes("Segundo saque")) selfAlerts.push("Protege tu segundo: más kick/altura y porcentajes.");
-    if (myWeaknesses.includes("Juego en la red")) selfAlerts.push("Si subes, hazlo tras pelota realmente ventajosa o al cuerpo.");
-    if (myWeaknesses.includes("Movimiento")) selfAlerts.push("Administra posiciones: evita intercambios laterales largos innecesarios.");
-    if (myWeaknesses.includes("Revés")) selfAlerts.push("Evita peloteos que expongan tu revés plano: usa altura o slice de contención.");
-
-    // Reglas generales separadas
-    serveYour.push("Primer servicio: define spots (T/abierto/cuerpo) según mano del rival y superficie.");
-    serveYour.push("Segundo servicio: usa altura/kick o al cuerpo; prepara Saque+1 predefinido.");
-    returnRival.push("Segundo saque débil del rival: adelántate y devuelve profundo (centro o a su revés).");
-
-    if (inMatch) {
-      const { obs, score, feeling } = inMatch;
-      if (obs?.missBH >= 3) inMatchAdj.push("Errores de su revés: insiste en esa diagonal y sube cuando quede corta.");
-      if (obs?.weak2nd >= 2) inMatchAdj.push("Segundo vulnerable: adelántate más y resta profundo al cuerpo.");
-      if (obs?.hatesNet >= 2) inMatchAdj.push("Evita invitarlo a la red: si sube, passing o globo.");
-      if (obs?.strugglesHigh >= 2) inMatchAdj.push("Sufre bolas altas: aumenta topspin a su lado débil.");
-      if (obs?.slowMove >= 2) inMatchAdj.push("Llega tarde: mezcla dejadas y cambios de dirección.");
-
-      if (score?.trend === "Perdiendo") scoreTips.push(...SCORE_TIPS.down);
-      if (score?.trend === "Ganando") scoreTips.push(...SCORE_TIPS.up);
-      if (score?.trend === "Parejo") scoreTips.push(...SCORE_TIPS.even);
-    }
-
-    if (!inMatchAdj.length) inMatchAdj.push("Observa 2–3 puntos, detecta patrón y presiona ahí.");
-    if (!fallbacks.length) fallbacks.push("Si el plan A no fluye: sube altura y juega más al centro para resetear el ritmo.");
-    if (!scoreTips.length) scoreTips.push("Si hay nervios: objetivos grandes + rutina breve.");
-
-    const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
-    return {
-      plan: uniq(plan),
-      patterns: uniq(patterns),
-      serveYour: uniq(serveYour),
-      returnRival: uniq(returnRival),
-      inMatch: uniq(inMatchAdj),
-      fallbacks: uniq(fallbacks),
-      selfAlerts: uniq(selfAlerts),
-      scoreTips: uniq(scoreTips),
-      climateTips: uniq(climateTips),
-    };
-  }
-
-  // Panel de cambio de lado: elegir 3 tarjetas + color
-  function buildSidePanel({ advice, obs, score, feeling }) {
-    // Plan: prioriza señales del motor + observaciones
-    const plan = advice?.patterns?.[0] || advice?.plan?.[0] || 'Plan base: presión al revés';
-    // Ajuste: usa inMatch o fallbacks según tendencia
-    let adjust = advice?.inMatch?.[0] || advice?.fallbacks?.[0] || 'Más margen: juega al centro';
-    if (score?.trend === 'Ganando') adjust = 'Consolida: alto % y paciencia';
-    if (score?.trend === 'Perdiendo') adjust = advice?.fallbacks?.[0] || 'Reset: altura y centro';
-
-    // Mental: por sensación o tip de marcador
-    const mental = (SCORE_TIPS.mental[feeling] || advice?.scoreTips?.[0] || 'Respira 4‑4‑4 y objetivo grande');
-
-    // Color por tendencia
-    const color = score?.trend === 'Ganando' ? 'green' : score?.trend === 'Parejo' ? 'orange' : 'red';
-
-    return { color, cards: { plan, adjust, mental } };
-  }
-
-  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-</script>
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
   </body>
 </html>
